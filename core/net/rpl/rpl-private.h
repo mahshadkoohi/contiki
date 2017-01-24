@@ -103,12 +103,19 @@
 /*---------------------------------------------------------------------------*/
 /* Default values for RPL constants and variables. */
 
-/* The default value for the DAO timer. */
-#ifdef RPL_CONF_DAO_LATENCY
-#define RPL_DAO_LATENCY                 RPL_CONF_DAO_LATENCY
-#else /* RPL_CONF_DAO_LATENCY */
-#define RPL_DAO_LATENCY                 (CLOCK_SECOND * 4)
-#endif /* RPL_DAO_LATENCY */
+/* DAO transmissions are always delayed by RPL_DAO_DELAY +/- RPL_DAO_DELAY/2 */
+#ifdef RPL_CONF_DAO_DELAY
+#define RPL_DAO_DELAY                 RPL_CONF_DAO_DELAY
+#else /* RPL_CONF_DAO_DELAY */
+#define RPL_DAO_DELAY                 (CLOCK_SECOND * 4)
+#endif /* RPL_CONF_DAO_DELAY */
+
+/* Delay between reception of a no-path DAO and actual route removal */
+#ifdef RPL_CONF_NOPATH_REMOVAL_DELAY
+#define RPL_NOPATH_REMOVAL_DELAY          RPL_CONF_NOPATH_REMOVAL_DELAY
+#else /* RPL_CONF_NOPATH_REMOVAL_DELAY */
+#define RPL_NOPATH_REMOVAL_DELAY          60
+#endif /* RPL_CONF_NOPATH_REMOVAL_DELAY */
 
 /* Special value indicating immediate removal. */
 #define RPL_ZERO_LIFETIME               0
@@ -134,9 +141,6 @@
 
 #define INFINITE_RANK                   0xffff
 
-
-/* Expire DAOs from neighbors that do not respond in this time. (seconds) */
-#define DAO_EXPIRATION_TIMEOUT          60
 /*---------------------------------------------------------------------------*/
 #define RPL_INSTANCE_LOCAL_FLAG         0x80
 #define RPL_INSTANCE_D_FLAG             0x40
@@ -184,12 +188,7 @@
 
 /* DIS related */
 #define RPL_DIS_SEND                    1
-#ifdef  RPL_DIS_INTERVAL_CONF
-#define RPL_DIS_INTERVAL                RPL_DIS_INTERVAL_CONF
-#else
-#define RPL_DIS_INTERVAL                60
-#endif
-#define RPL_DIS_START_DELAY             5
+
 /*---------------------------------------------------------------------------*/
 /* Lollipop counters */
 
@@ -220,8 +219,12 @@ struct rpl_dio {
   uint8_t version;
   uint8_t instance_id;
   uint8_t dtsn;
+#if RPL_FIXED_DIO
+  uint8_t dag_interval;
+#else
   uint8_t dag_intdoubl;
   uint8_t dag_intmin;
+#endif
   uint8_t dag_redund;
   uint8_t default_lifetime;
   uint16_t lifetime_unit;
@@ -230,6 +233,9 @@ struct rpl_dio {
   rpl_prefix_t destination_prefix;
   rpl_prefix_t prefix_info;
   struct rpl_metric_container mc;
+#if RPL_AVOID_MOBILE
+  uint8_t mobility;
+#endif
 };
 typedef struct rpl_dio rpl_dio_t;
 
@@ -278,12 +284,14 @@ void rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio);
 void rpl_local_repair(rpl_instance_t *instance);
 void rpl_process_dio(uip_ipaddr_t *, rpl_dio_t *);
 int rpl_process_parent_event(rpl_instance_t *, rpl_parent_t *);
+void rpl_process_inconsistency(rpl_instance_t *);
 
 /* DAG object management. */
 rpl_dag_t *rpl_alloc_dag(uint8_t, uip_ipaddr_t *);
 rpl_instance_t *rpl_alloc_instance(uint8_t);
 void rpl_free_dag(rpl_dag_t *);
 void rpl_free_instance(rpl_instance_t *);
+void rpl_purge_dags(void);
 
 /* DAG parent management function. */
 rpl_parent_t *rpl_add_parent(rpl_dag_t *, rpl_dio_t *dio, uip_ipaddr_t *);
@@ -303,9 +311,6 @@ uip_ds6_route_t *rpl_add_route(rpl_dag_t *dag, uip_ipaddr_t *prefix,
                                int prefix_len, uip_ipaddr_t *next_hop);
 void rpl_purge_routes(void);
 
-/* Lock a parent in the neighbor cache. */
-void rpl_lock_parent(rpl_parent_t *p);
-
 /* Objective function. */
 rpl_of_t *rpl_find_of(rpl_ocp_t);
 
@@ -317,6 +322,12 @@ void rpl_schedule_probing(rpl_instance_t *instance);
 
 void rpl_reset_dio_timer(rpl_instance_t *);
 void rpl_reset_periodic_timer(void);
+#if RPL_REVERSE_TRICKLE && !RPL_MOBILE
+void rpl_start_reverse_trickle(rpl_instance_t *);
+#elif RPL_REVERSE_TRICKLE && RPL_MOBILE
+void rpl_reset_dthresh_timer(rpl_instance_t *instance);
+#endif
+
 
 /* Route poisoning. */
 void rpl_poison_routes(rpl_dag_t *, rpl_parent_t *);

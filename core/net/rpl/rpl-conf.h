@@ -78,16 +78,6 @@
 #endif /* RPL_CONF_DEFAULT_INSTANCE */
 
 /*
- * This value decides if this node must stay as a leaf or not
- * as allowed by draft-ietf-roll-rpl-19#section-8.5
- */
-#ifdef RPL_CONF_LEAF_ONLY
-#define RPL_LEAF_ONLY RPL_CONF_LEAF_ONLY
-#else
-#define RPL_LEAF_ONLY 0
-#endif
-
-/*
  * Maximum of concurent RPL instances.
  */
 #ifdef RPL_CONF_MAX_INSTANCES
@@ -122,6 +112,18 @@
 #endif /* RPL_CONF_DEFAULT_ROUTE_INFINITE_LIFETIME */
 
 /*
+ * Maximum lifetime of a DAG
+ * When a DODAG is not updated since RPL_CONF_DAG_LIFETIME times the DODAG
+ * maximum DIO interval the DODAG is removed from the list of DODAGS of the
+ * related instance, except if it is the currently joined DODAG.
+ */
+#ifdef RPL_CONF_DAG_LIFETIME
+#define RPL_DAG_LIFETIME                    RPL_CONF_DAG_LIFETIME
+#else
+#define RPL_DAG_LIFETIME                    3
+#endif /* RPL_CONF_DAG_LIFETIME */
+
+/*
  * 
  */
 #ifndef RPL_CONF_DAO_SPECIFY_DAG
@@ -133,6 +135,27 @@
 #else
   #define RPL_DAO_SPECIFY_DAG RPL_CONF_DAO_SPECIFY_DAG
 #endif /* RPL_CONF_DAO_SPECIFY_DAG */
+
+
+/*
+ * Use or not of a Fixed DIO timer
+ * */
+
+#ifdef RPL_CONF_FIXED_DIO
+#define RPL_FIXED_DIO RPL_CONF_FIXED_DIO
+#else
+#define RPL_FIXED_DIO 0
+#endif 
+
+#if RPL_FIXED_DIO
+
+#ifdef RPL_CONF_DIO_INTERVAL
+#define RPL_DIO_INTERVAL RPL_CONF_DIO_INTERVAL
+#else
+#define RPL_DIO_INTERVAL 10
+#endif 
+
+#else
 
 /*
  * The DIO interval (n) represents 2^n ms.
@@ -160,6 +183,8 @@
 #else
 #define RPL_DIO_INTERVAL_DOUBLINGS  8
 #endif
+
+#endif /* RPL_FIXED_DIO */
 
 /*
  * DIO redundancy. To learn more about this, see RFC 6206.
@@ -226,7 +251,7 @@
 /*
  * RPL probing. When enabled, probes will be sent periodically to keep
  * parent link estimates up to date.
- * */
+ */
 #ifdef RPL_CONF_WITH_PROBING
 #define RPL_WITH_PROBING RPL_CONF_WITH_PROBING
 #else
@@ -235,7 +260,7 @@
 
 /*
  * RPL probing interval.
- * */
+ */
 #ifdef RPL_CONF_PROBING_INTERVAL
 #define RPL_PROBING_INTERVAL RPL_CONF_PROBING_INTERVAL
 #else
@@ -244,7 +269,7 @@
 
 /*
  * RPL probing expiration time.
- * */
+ */
 #ifdef RPL_CONF_PROBING_EXPIRATION_TIME
 #define RPL_PROBING_EXPIRATION_TIME RPL_CONF_PROBING_EXPIRATION_TIME
 #else
@@ -253,7 +278,7 @@
 
 /*
  * Function used to select the next parent to be probed.
- * */
+ */
 #ifdef RPL_CONF_PROBING_SELECT_FUNC
 #define RPL_PROBING_SELECT_FUNC RPL_CONF_PROBING_SELECT_FUNC
 #else
@@ -267,7 +292,7 @@
  * To probe with DIS, use:
  * #define RPL_CONF_PROBING_SEND_FUNC(instance, addr) dis_output((addr))
  * Any other custom probing function is also acceptable.
- * */
+ */
 #ifdef RPL_CONF_PROBING_SEND_FUNC
 #define RPL_PROBING_SEND_FUNC RPL_CONF_PROBING_SEND_FUNC
 #else
@@ -276,12 +301,141 @@
 
 /*
  * Function used to calculate next RPL probing interval
- * */
+ */
 #ifdef RPL_CONF_PROBING_DELAY_FUNC
 #define RPL_PROBING_DELAY_FUNC RPL_CONF_PROBING_DELAY_FUNC
 #else
 #define RPL_PROBING_DELAY_FUNC() ((RPL_PROBING_INTERVAL / 2) \
     + random_rand() % (RPL_PROBING_INTERVAL))
 #endif
+
+/*
+ * Interval of DIS transmission
+ */
+#ifdef  RPL_CONF_DIS_INTERVAL
+#define RPL_DIS_INTERVAL                RPL_CONF_DIS_INTERVAL
+#else
+#define RPL_DIS_INTERVAL                60
+#endif
+
+/*
+ * Added delay of first DIS transmission after boot
+ */
+#ifdef  RPL_CONF_DIS_START_DELAY
+#define RPL_DIS_START_DELAY             RPL_CONF_DIS_START_DELAY
+#else
+#define RPL_DIS_START_DELAY             5
+#endif
+
+/*
+ * Use or not of Dynamic DIS timer and Dynamic DIS configurations
+ * */
+#ifdef RPL_CONF_DYNAMIC_DIS
+#define RPL_DYNAMIC_DIS RPL_CONF_DYNAMIC_DIS
+#else
+#define RPL_DYNAMIC_DIS 0
+#endif
+
+#if RPL_DYNAMIC_DIS
+
+#ifdef RPL_CONF_N_DOWN_DIS
+#define RPL_N_DOWN_DIS RPL_CONF_N_DOWN_DIS
+#else
+#define RPL_N_DOWN_DIS 1 //1
+#endif
+
+#ifdef RPL_CONF_N_UP_DIS
+#define RPL_N_UP_DIS RPL_CONF_N_UP_DIS
+#else
+#define RPL_N_UP_DIS 5 //5
+#endif
+
+#ifdef RPL_CONF_I_DIS_MIN
+#define RPL_I_DIS_MIN RPL_CONF_I_DIS_MIN
+#else
+#define RPL_I_DIS_MIN 3
+#endif
+
+#ifdef RPL_CONF_I_DIS_MAX
+#define RPL_I_DIS_MAX RPL_CONF_I_DIS_MAX
+#else
+#define RPL_I_DIS_MAX 60
+#endif
+
+#endif /* RPL_DYNAMIC_DIS */
+
+#ifdef RPL_CONF_DIO_ON_INCONSISTENCY
+#define RPL_DIO_ON_INCONSISTENCY RPL_CONF_DIO_ON_INCONSISTENCY
+#else
+#define RPL_DIO_ON_INCONSISTENCY 0
+#endif
+
+#ifdef RPL_CONF_DIO_DAO_ON_NEW_PARENT
+#define RPL_DIO_DAO_ON_NEW_PARENT RPL_CONF_DIO_DAO_ON_NEW_PARENT
+#else
+#define RPL_DIO_DAO_ON_NEW_PARENT 0
+#endif
+
+#ifdef RPL_CONF_REVERSE_TRICKLE
+#define RPL_REVERSE_TRICKLE RPL_CONF_REVERSE_TRICKLE
+#else
+#define RPL_REVERSE_TRICKLE 0
+#endif
+
+
+#if RPL_REVERSE_TRICKLE
+#define RPL_DAO_MOBILITY_FLAG 4
+#endif
+
+#ifdef RPL_CONF_AVOID_MOBILE
+#define RPL_AVOID_MOBILE RPL_CONF_AVOID_MOBILE
+#else
+#define RPL_AVOID_MOBILE 0
+#endif
+
+#ifdef RPL_AVOID_MOBILE
+#define RPL_OPTION_MOBILITY 0x1a
+#endif
+
+#ifdef RPL_CONF_MOBILE
+#define RPL_MOBILE RPL_CONF_MOBILE
+#else
+#define RPL_MOBILE 0
+#endif
+
+
+#if RPL_REVERSE_TRICKLE && RPL_MOBILE
+#define RPL_LEAF_ONLY 1
+
+#ifdef RPL_CONF_REVERSE_DTHRESH
+#define RPL_REVERSE_DTHRESH  RPL_CONF_REVERSE_DTHRESH
+#else
+#define RPL_REVERSE_DTHRESH 3
+#endif/* RPL_CONF_REVERSE_DTHRESH */
+
+#else /* RPL_REVERSE_TRICKLE && RPL_MOBILE */
+
+/*
+ * This value decides if this node must stay as a leaf or not
+ * as allowed by draft-ietf-roll-rpl-19#section-8.5
+ */
+#ifdef RPL_CONF_LEAF_ONLY
+#define RPL_LEAF_ONLY RPL_CONF_LEAF_ONLY
+#else
+#define RPL_LEAF_ONLY 0
+#endif
+
+#endif/* RPL_REVERSE_TRICKLE && RPL_MOBILE */
+
+
+#if RPL_WITH_PROBING
+#ifdef RPL_CONF_PROBE_ON_NEW_NEIGHBOR
+#define RPL_PROBE_ON_NEW_NEIGHBOR RPL_CONF_PROBE_ON_NEW_NEIGHBOR
+#else
+#define RPL_PROBE_ON_NEW_NEIGHBOR 0
+#endif
+#else /* RPL_WITH_PROBING */
+#define RPL_PROBE_ON_NEW_NEIGHBOR 0
+#endif /* RPL_WITH_PROBING */
 
 #endif /* RPL_CONF_H */
