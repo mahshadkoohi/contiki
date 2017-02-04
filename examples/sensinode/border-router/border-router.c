@@ -34,7 +34,7 @@
 #include <string.h>
 
 #define DEBUG DEBUG_PRINT
-#include "net/uip-debug.h"
+#include "net/ip/uip-debug.h"
 #include "net/rpl/rpl.h"
 #include "dev/watchdog.h"
 #include "dev/slip.h"
@@ -90,7 +90,7 @@ request_prefix(void) CC_NON_BANKED
   uip_buf[1] = 'P';
   uip_len = 2;
   slip_send();
-  uip_len = 0;
+  uip_clear_buf();
 }
 /*---------------------------------------------------------------------------*/
 /* Set our prefix when we receive one over SLIP */

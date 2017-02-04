@@ -9,8 +9,8 @@
  *	   (recent updates for the sensinode/cc2430 port)
  */
 
-#ifndef __8051_DEF_H__
-#define __8051_DEF_H__
+#ifndef E051_DEF_H_
+#define E051_DEF_H_
 
 #include <stdint.h>
 
@@ -38,7 +38,6 @@
 #endif
 
 #define CC_CONF_FUNCTION_POINTER_ARGS	1
-#define CC_CONF_FASTCALL
 #define CC_CONF_VA_ARGS		1
 #define CC_CONF_UNSIGNED_CHAR_BUGS	0
 #define CC_CONF_REGISTER_ARGS		0
@@ -110,4 +109,4 @@ typedef unsigned short clock_time_t;
 #define uip_ipaddr_copy(dest, src)		\
     memcpy(dest, src, sizeof(*dest))
 
-#endif /* __8051_DEF_H__ */
+#endif /* E051_DEF_H_ */

@@ -73,6 +73,18 @@
 /* #define NETSTACK_CONF_MAC   csma_driver */
 #endif /* NETSTACK_CONF_MAC */
 
+/* NETSTACK_CONF_LLSEC specifies the link layer security driver. */
+#ifndef NETSTACK_CONF_LLSEC
+#define NETSTACK_CONF_LLSEC nullsec_driver
+#endif /* NETSTACK_CONF_LLSEC */
+
+/* To avoid unnecessary complexity, we assume the common case of
+   a constant LoWPAN-wide IEEE 802.15.4 security level, which
+   can be specified by defining LLSEC802154_CONF_SECURITY_LEVEL. */
+#ifndef LLSEC802154_CONF_SECURITY_LEVEL
+#define LLSEC802154_CONF_SECURITY_LEVEL 0
+#endif /* LLSEC802154_CONF_SECURITY_LEVEL */
+
 /* NETSTACK_CONF_NETWORK specifies the network layer and can be either
    sicslowpan_driver, for IPv6 networking, or rime_driver, for the
    custom Rime network stack. */
@@ -111,11 +123,11 @@
  * project-specific configuration to save memory.
  */
 
-/* UIP_CONF_IPV6 specifies whether or not IPv6 should be used. If IPv6
+/* NETSTACK_CONF_WITH_IPV6 specifies whether or not IPv6 should be used. If IPv6
    is not used, IPv4 is used instead. */
-#ifndef UIP_CONF_IPV6
-#define UIP_CONF_IPV6 0
-#endif /* UIP_CONF_IPV6 */
+#ifndef NETSTACK_CONF_WITH_IPV6
+#define NETSTACK_CONF_WITH_IPV6 0
+#endif /* NETSTACK_CONF_WITH_IPV6 */
 
 /* UIP_CONF_BUFFER_SIZE specifies how much memory should be reserved
    for the uIP packet buffer. This sets an upper bound on the largest
@@ -180,6 +192,26 @@
 #define NBR_TABLE_CONF_MAX_NEIGHBORS 8
 #endif /* NBR_TABLE_CONF_MAX_NEIGHBORS */
 
+/* UIP_CONF_ND6_SEND_RA enables standard IPv6 Router Advertisement.
+ * We enable it by default when IPv6 is used without RPL. */
+#ifndef UIP_CONF_ND6_SEND_RA
+#define UIP_CONF_ND6_SEND_RA (NETSTACK_CONF_WITH_IPV6 && !UIP_CONF_IPV6_RPL)
+#endif /* UIP_CONF_ND6_SEND_RA */
+
+/* UIP_CONF_ND6_SEND_NA enables standard IPv6 Neighbor Discovery Protocol.
+   We enable it by default when IPv6 is used without RPL.
+   With RPL, the neighbor cache (link-local IPv6 <-> MAC address mapping)
+   is fed whenever receiving DIO and DAO messages. This is always sufficient
+   for RPL routing, i.e. to send to the preferred parent or any child.
+   Link-local unicast to other neighbors may, however, not be possible if
+   we never receive any DIO from them. This may happen if the link from the
+   neighbor to us is weak, if DIO transmissions are suppressed (Trickle
+   timer) or if the neighbor chooses not to transmit DIOs because it is
+   a leaf node or for any reason. */
+#ifndef UIP_CONF_ND6_SEND_NA
+#define UIP_CONF_ND6_SEND_NA (NETSTACK_CONF_WITH_IPV6 && !UIP_CONF_IPV6_RPL)
+#endif /* UIP_CONF_ND6_SEND_NA */
+
 /*---------------------------------------------------------------------------*/
 /* 6lowpan configuration options.
  *
@@ -202,13 +234,12 @@
 #define SICSLOWPAN_CONF_FRAG 1
 #endif /* SICSLOWPAN_CONF_FRAG */
 
-/* SICSLOWPAN_CONF_MAC_MAX_PAYLOAD specifies the maximum size of
-   packets before they get fragmented. The default is 127 bytes (the
-   maximum size of a 802.15.4 frame) - 25 bytes (for the 802.15.4 MAC
-   layer header). This can be increased for systems with larger packet
-   sizes. */
+/* SICSLOWPAN_CONF_MAC_MAX_PAYLOAD is the maximum available size for
+   frame headers, link layer security-related overhead,  as well as
+   6LoWPAN payload. By default, SICSLOWPAN_CONF_MAC_MAX_PAYLOAD is
+   127 bytes (MTU of 802.15.4) - 2 bytes (Footer of 802.15.4). */
 #ifndef SICSLOWPAN_CONF_MAC_MAX_PAYLOAD
-#define SICSLOWPAN_CONF_MAC_MAX_PAYLOAD (127 - 25)
+#define SICSLOWPAN_CONF_MAC_MAX_PAYLOAD (127 - 2)
 #endif /* SICSLOWPAN_CONF_MAC_MAX_PAYLOAD */
 
 /* SICSLOWPAN_CONF_COMPRESSION_THRESHOLD sets a lower threshold for

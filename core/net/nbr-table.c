@@ -40,10 +40,22 @@
 #include "lib/list.h"
 #include "net/nbr-table.h"
 
+#define DEBUG 0
+#if DEBUG
+#include <stdio.h>
+#include "sys/ctimer.h"
+static void handle_periodic_timer(void *ptr);
+static struct ctimer periodic_timer;
+static uint8_t initialized = 0;
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
 /* List of link-layer addresses of the neighbors, used as key in the tables */
 typedef struct nbr_table_key {
   struct nbr_table_key *next;
-  rimeaddr_t lladdr;
+  linkaddr_t lladdr;
 } nbr_table_key_t;
 
 /* For each neighbor, a map of the tables that use the neighbor.
@@ -86,7 +98,7 @@ index_from_key(nbr_table_key_t *key)
 /*---------------------------------------------------------------------------*/
 /* Get the neighbor index of an item */
 static int
-index_from_item(nbr_table_t *table, nbr_table_item_t *item)
+index_from_item(nbr_table_t *table, const nbr_table_item_t *item)
 {
   return table != NULL && item != NULL ? ((int)((char *)item - (char *)table->data)) / table->item_size : -1;
 }
@@ -100,24 +112,24 @@ item_from_key(nbr_table_t *table, nbr_table_key_t *key)
 /*---------------------------------------------------------------------------*/
 /* Get the key af an item */
 static nbr_table_key_t *
-key_from_item(nbr_table_t *table, nbr_table_item_t *item)
+key_from_item(nbr_table_t *table, const nbr_table_item_t *item)
 {
   return key_from_index(index_from_item(table, item));
 }
 /*---------------------------------------------------------------------------*/
 /* Get the index of a neighbor from its link-layer address */
 static int
-index_from_lladdr(const rimeaddr_t *lladdr)
+index_from_lladdr(const linkaddr_t *lladdr)
 {
   nbr_table_key_t *key;
   /* Allow lladdr-free insertion, useful e.g. for IPv6 ND.
-   * Only one such entry is possible at a time, indexed by rimeaddr_null. */
+   * Only one such entry is possible at a time, indexed by linkaddr_null. */
   if(lladdr == NULL) {
-    lladdr = &rimeaddr_null;
+    lladdr = &linkaddr_null;
   }
   key = list_head(nbr_table_keys);
   while(key != NULL) {
-    if(lladdr && rimeaddr_cmp(lladdr, &key->lladdr)) {
+    if(lladdr && linkaddr_cmp(lladdr, &key->lladdr)) {
       return index_from_key(key);
     }
     key = list_item_next(key);
@@ -143,6 +155,7 @@ static int
 nbr_set_bit(uint8_t *bitmap, nbr_table_t *table, nbr_table_item_t *item, int value)
 {
   int item_index = index_from_item(table, item);
+
   if(table != NULL && item_index != -1) {
     if(value) {
       bitmap[item_index] |= 1 << table->index;
@@ -229,6 +242,13 @@ nbr_table_allocate(void)
 int
 nbr_table_register(nbr_table_t *table, nbr_table_callback *callback)
 {
+#if DEBUG
+  if(!initialized) {
+    initialized = 1;
+    /* schedule a debug printout per minute */
+    ctimer_set(&periodic_timer, CLOCK_SECOND * 60, handle_periodic_timer, NULL);
+  }
+#endif
   if(num_tables < MAX_NUM_TABLES) {
     table->index = num_tables++;
     table->callback = callback;
@@ -269,16 +289,16 @@ nbr_table_next(nbr_table_t *table, nbr_table_item_t *item)
 /*---------------------------------------------------------------------------*/
 /* Add a neighbor indexed with its link-layer address */
 nbr_table_item_t *
-nbr_table_add_lladdr(nbr_table_t *table, const rimeaddr_t *lladdr)
+nbr_table_add_lladdr(nbr_table_t *table, const linkaddr_t *lladdr)
 {
   int index;
   nbr_table_item_t *item;
   nbr_table_key_t *key;
 
   /* Allow lladdr-free insertion, useful e.g. for IPv6 ND.
-   * Only one such entry is possible at a time, indexed by rimeaddr_null. */
+   * Only one such entry is possible at a time, indexed by linkaddr_null. */
   if(lladdr == NULL) {
-    lladdr = &rimeaddr_null;
+    lladdr = &linkaddr_null;
   }
 
   if((index = index_from_lladdr(lladdr)) == -1) {
@@ -297,7 +317,7 @@ nbr_table_add_lladdr(nbr_table_t *table, const rimeaddr_t *lladdr)
     index = index_from_key(key);
 
     /* Set link-layer address */
-    rimeaddr_copy(&key->lladdr, lladdr);
+    linkaddr_copy(&key->lladdr, lladdr);
   }
 
   /* Get item in the current table */
@@ -312,7 +332,7 @@ nbr_table_add_lladdr(nbr_table_t *table, const rimeaddr_t *lladdr)
 /*---------------------------------------------------------------------------*/
 /* Get an item from its link-layer address */
 void *
-nbr_table_get_from_lladdr(nbr_table_t *table, const rimeaddr_t *lladdr)
+nbr_table_get_from_lladdr(nbr_table_t *table, const linkaddr_t *lladdr)
 {
   void *item = item_from_index(table, index_from_lladdr(lladdr));
   return nbr_get_bit(used_map, table, item) ? item : NULL;
@@ -331,6 +351,10 @@ nbr_table_remove(nbr_table_t *table, void *item)
 int
 nbr_table_lock(nbr_table_t *table, void *item)
 {
+#if DEBUG
+  int i = index_from_item(table, item);
+  PRINTF("*** Lock %d\n", i);
+#endif
   return nbr_set_bit(locked_map, table, item, 1);
 }
 /*---------------------------------------------------------------------------*/
@@ -338,13 +362,39 @@ nbr_table_lock(nbr_table_t *table, void *item)
 int
 nbr_table_unlock(nbr_table_t *table, void *item)
 {
+#if DEBUG
+  int i = index_from_item(table, item);
+  PRINTF("*** Unlock %d\n", i);
+#endif
   return nbr_set_bit(locked_map, table, item, 0);
 }
 /*---------------------------------------------------------------------------*/
 /* Get link-layer address of an item */
-rimeaddr_t *
-nbr_table_get_lladdr(nbr_table_t *table, void *item)
+linkaddr_t *
+nbr_table_get_lladdr(nbr_table_t *table, const void *item)
 {
   nbr_table_key_t *key = key_from_item(table, item);
   return key != NULL ? &key->lladdr : NULL;
 }
+/*---------------------------------------------------------------------------*/
+#if DEBUG
+static void
+handle_periodic_timer(void *ptr)
+{
+  int i, j;
+  /* Printout all neighbors and which tables they are used in */
+  PRINTF("NBR TABLE:\n");
+  for(i = 0; i < NBR_TABLE_MAX_NEIGHBORS; i++) {
+    if(used_map[i] > 0) {
+      PRINTF(" %02d %02d",i , key_from_index(i)->lladdr.u8[LINKADDR_SIZE - 1]);
+      for(j = 0; j < num_tables; j++) {
+        PRINTF(" [%d:%d]", (used_map[i] & (1 << j)) != 0,
+               (locked_map[i] & (1 << j)) != 0);
+      }
+      PRINTF("\n");
+    }
+  }
+  ctimer_reset(&periodic_timer);
+}
+#endif
+

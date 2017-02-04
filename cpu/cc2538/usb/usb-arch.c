@@ -46,11 +46,20 @@
 #include "dev/ioc.h"
 #include "dev/udma.h"
 #include "sys/clock.h"
+#include "lpm.h"
 #include "reg.h"
 
 #include "dev/watchdog.h"
 
+#include <stdbool.h>
 #include <stdint.h>
+/*---------------------------------------------------------------------------*/
+#ifdef USB_PULLUP_PORT
+#define USB_PULLUP_PORT_BASE     GPIO_PORT_TO_BASE(USB_PULLUP_PORT)
+#endif
+#ifdef USB_PULLUP_PIN
+#define USB_PULLUP_PIN_MASK      GPIO_PIN_MASK(USB_PULLUP_PIN)
+#endif
 /*---------------------------------------------------------------------------*/
 /* EP max FIFO sizes without double buffering */
 #if CTRL_EP_SIZE > 32
@@ -303,11 +312,23 @@ reset(void)
   usb_arch_setup_control_endpoint(0);
 }
 /*---------------------------------------------------------------------------*/
+static bool
+permit_pm1(void)
+{
+  /*
+   * Note: USB Suspend/Resume/Remote Wake-Up are not supported. Once the PLL is
+   * on, it stays on.
+   */
+  return REG(USB_CTRL) == 0;
+}
+/*---------------------------------------------------------------------------*/
 /* Init USB */
 void
 usb_arch_setup(void)
 {
   uint8_t i;
+
+  lpm_register_peripheral(permit_pm1);
 
   /* Switch on USB PLL & USB module */
   REG(USB_CTRL) = USB_CTRL_USB_EN | USB_CTRL_PLL_EN;
@@ -315,9 +336,11 @@ usb_arch_setup(void)
   /* Wait until USB PLL is stable */
   while(!(REG(USB_CTRL) & USB_CTRL_PLL_LOCKED));
 
-  /* Enable pull-up on usb port */
-  GPIO_SET_OUTPUT(USB_PULLUP_PORT, USB_PULLUP_PIN_MASK);
-  REG((USB_PULLUP_PORT | GPIO_DATA) + (USB_PULLUP_PIN_MASK << 2)) = 1;
+  /* Enable pull-up on usb port if driven by GPIO */
+#if defined(USB_PULLUP_PORT_BASE) && defined(USB_PULLUP_PIN_MASK)
+  GPIO_SET_OUTPUT(USB_PULLUP_PORT_BASE, USB_PULLUP_PIN_MASK);
+  GPIO_SET_PIN(USB_PULLUP_PORT_BASE, USB_PULLUP_PIN_MASK);
+#endif
 
   for(i = 0; i < USB_MAX_ENDPOINTS; i++) {
     usb_endpoints[i].flags = 0;
@@ -849,7 +872,7 @@ fill_buffers(usb_buffer *buffer, uint8_t hw_ep, unsigned int len,
 static uint8_t
 ep0_get_setup_pkt(void)
 {
-  uint8_t res;
+  uint8_t res = 0;
   usb_buffer *buffer =
     skip_buffers_until(usb_endpoints[0].buffer, USB_BUFFER_SETUP,
                        USB_BUFFER_SETUP, &res);
@@ -893,8 +916,6 @@ ep0_get_data_pkt(void)
   }
 
   if(buffer->flags & (USB_BUFFER_SETUP | USB_BUFFER_IN)) {
-    uint8_t temp;
-
     buffer->flags |= USB_BUFFER_FAILED;
     buffer->flags &= ~USB_BUFFER_SUBMITTED;
     if(buffer->flags & USB_BUFFER_NOTIFY) {
@@ -902,7 +923,7 @@ ep0_get_data_pkt(void)
     }
     /* Flush the fifo */
     while(len--) {
-      temp = REG(USB_F0);
+      REG(USB_F0);
     }
     usb_endpoints[0].buffer = buffer->next;
     /* Force data stage end */
